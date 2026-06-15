@@ -12,7 +12,7 @@ load_dotenv()
 #  CONFIG  —  fill these in before running
 # ══════════════════════════════════════════════════════════════
 BOT_TOKEN      = os.getenv("BOT_TOKEN")
-RANKER_ROLE_ID = 1500916350212902992   # role that can click rank buttons
+RANKER_ROLE_ID = 1515873067476193320   # role that can click rank buttons
 
 # Custom animated emoji to use for waiting status.
 # Replace 123456789012345678 with your clock emoji ID from the server.
