@@ -16,17 +16,26 @@ RANKER_ROLE_ID = 1500916350212902992   # role that can click rank buttons
 
 # Custom animated emoji to use for waiting status.
 # Replace 123456789012345678 with your clock emoji ID from the server.
-CLOCK_EMOJI = "<a:clock:1500929391360741446>"
+CLOCK_EMOJI = "<:clock:1515876111307767938>"
+UNREAL_EDITOR_EMOJI = "<:unreal:1515875337953738832>"
+CHAMPION_EDITOR_EMOJI = "<:champion:1515875395881275562>"
+ELITE_EDITOR_EMOJI = "<:elite:1515875453997551636>"
+DIAMOND_EDITOR_EMOJI = "<:diamond:1515875494313201805>"
+PLATINUM_EDITOR_EMOJI = "<:platinum:1515875896509206560>"
+GOLD_EDITOR_EMOJI = "<:gold:1515875534729384058>"
+SILVER_EDITOR_EMOJI = "<:silver:1515875707580842046>"
+BRONZE_EDITOR_EMOJI = "<:bronze:1515875739399094423>"
 
 # Each rank: label shown on button + the Discord Role ID to assign
 RANKS = [
-    {"label": "Grand Champion Editor", "role_id": 1500379922500419604},
-    {"label": "Champion Editor",    "role_id": 1500378910964060300},
-    {"label": "Pro Editor",         "role_id": 1500378551298428988},
-    {"label": "Diamond Editor",     "role_id": 1500379769626296404},
-    {"label": "Gold Editor",        "role_id": 1500379642987679837},
-    {"label": "Silver Editor",      "role_id": 1500581757920219136},
-    {"label": "Decent Editor",      "role_id": 1500378787173498880},
+    {"label": "Unreal Editor", "role_id": 1515863723405738045, "emoji": UNREAL_EDITOR_EMOJI},
+    {"label": "Champion Editor",    "role_id": 1515863768100507818, "emoji": CHAMPION_EDITOR_EMOJI},
+    {"label": "Elite Editor",         "role_id": 1515863804536160307, "emoji": ELITE_EDITOR_EMOJI},
+    {"label": "Diamond Editor",     "role_id": 1515863832810098848, "emoji": DIAMOND_EDITOR_EMOJI},
+    {"label": "Platinum Editor",    "role_id": 1515863860483981395, "emoji": PLATINUM_EDITOR_EMOJI},
+    {"label": "Gold Editor",        "role_id": 1515863901445816362, "emoji": GOLD_EDITOR_EMOJI},
+    {"label": "Silver Editor",      "role_id": 1515863938191982765, "emoji": SILVER_EDITOR_EMOJI},
+    {"label": "Bronze Editor",      "role_id": 1515863965828386906, "emoji": BRONZE_EDITOR_EMOJI},
 ]
 # ══════════════════════════════════════════════════════════════
 
@@ -46,7 +55,7 @@ class RankApplicationModal(discord.ui.Modal, title="Rank Application"):
     app_used = discord.ui.TextInput(
         label="App Used",
         style=discord.TextStyle.short,
-        placeholder="e.g., After Effects, Premiere Pro, etc.",
+        placeholder="e.g., CapCut, Alight Motion, etc.",
         required=True,
         max_length=128,
     )
@@ -132,6 +141,7 @@ class RankButton(discord.ui.Button):
     def __init__(self, rank: dict, applicant_id: int, row: int):
         super().__init__(
             label=rank["label"],
+            emoji=rank["emoji"],
             style=discord.ButtonStyle.secondary,
             custom_id=f"rank_{rank['label'].replace(' ', '_')}_{applicant_id}",
             row=row,
@@ -272,21 +282,22 @@ async def setup(interaction: discord.Interaction):
     await interaction.response.defer()
     
     embed = discord.Embed(
-        title="GET RANKED",
+        title="GET RANKED!",
         description=(
-            "Click the button below to fill out your application.\n\n"
+            "Click the button below to fill out your submission.\n\n"
             "**Rank Tiers** (Highest → Lowest)\n"
-            "👑 Grand Champion Editor\n"
-            "🏆 Champion Editor\n"
-            "⚡ Pro Editor\n"
-            "💎 Diamond Editor\n"
-            "🥇 Gold Editor\n"
-            "🥈 Silver Editor\n"
-            "✅ Decent Editor"
+            f"{UNREAL_EDITOR_EMOJI} Unreal Editor\n"
+            f"{CHAMPION_EDITOR_EMOJI} Champion Editor\n"
+            f"{ELITE_EDITOR_EMOJI} Elite Editor\n"
+            f"{DIAMOND_EDITOR_EMOJI} Diamond Editor\n"
+            f"{PLATINUM_EDITOR_EMOJI} Platinum Editor\n"
+            f"{GOLD_EDITOR_EMOJI} Gold Editor\n"
+            f"{SILVER_EDITOR_EMOJI} Silver Editor\n"
+            f"{BRONZE_EDITOR_EMOJI} Bronze Editor"
         ),
-        color=discord.Color.blurple(),
+        color=discord.Color.dark_green(),
     )
-    embed.set_footer(text="Select the button below to begin your application.")
+    embed.set_footer(text="Select the button below to begin your submission.")
 
     await interaction.followup.send(embed=embed, view=PersistentSetupView())
 
