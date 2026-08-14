@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// One row per Discord server the bot has been configured in.
+model Guild {
+  id             String   @id // Discord guild (server) snowflake ID
+  name           String? // cached display name, set on setup
+  rankerRoleId   String? // role allowed to click rank buttons
+  forumChannelId String? // forum channel where applications must be submitted
+  ranks          Rank[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// One row per rank button (e.g. "Gold Editor" -> a role).
+// `position` controls left-to-right / row order on the button grid.
+model Rank {
+  id        String   @id @default(cuid())
+  guildId   String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  label     String // button text, e.g. "Gold Editor"
+  roleId    String // Discord role ID assigned when this rank is picked
+  emoji     String? // raw emoji or <:name:id> / <a:name:id> custom emoji string
+  position  Int      @default(0)
+
+  @@index([guildId])
+}
+
+// A scheduled cleanup job for an application thread, checked by the cron route.
+model PendingThreadDeletion {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String // the thread ID to delete
+  deleteAt  DateTime
+
+  @@index([deleteAt])
+}
