@@ -280,7 +280,7 @@ async function handleModalSubmit(interaction: any) {
   const applicantId: string = user.id;
   const avatarUrl = user.avatar
     ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
-    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.id) >> 22n) % 6}.png`;
+    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(user.id) >> BigInt(22)) % 6}.png`;
 
   const embed = buildApplicationEmbed({
     userId: applicantId,
