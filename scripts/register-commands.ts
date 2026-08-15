@@ -19,7 +19,7 @@ if (!APPLICATION_ID || !BOT_TOKEN) {
 const commands = [
   {
     name: "setup",
-    description: "Post the GET RANKED embed in this channel.",
+    description: "Post the rank application panel in this channel.",
     default_member_permissions: String(1 << 3), // ADMINISTRATOR
   },
   {
