@@ -80,6 +80,53 @@ export default async function Home() {
             {serverCount === 1 ? "server" : "servers"}
           </p>
         )}
+
+        <div className="grid sm:grid-cols-3 gap-4 mt-24">
+          <div className="card bg-panel p-5">
+            <span className="text-2xl" aria-hidden="true">
+              ⚙️
+            </span>
+            <p className="font-medium mt-3">No-code setup</p>
+            <p className="text-white/50 text-sm mt-1">
+              Configure rank tiers and roles entirely from the dashboard.
+            </p>
+          </div>
+          <div className="card bg-panel p-5">
+            <span className="text-2xl" aria-hidden="true">
+              🖥️
+            </span>
+            <p className="font-medium mt-3">Multi-server ready</p>
+            <p className="text-white/50 text-sm mt-1">
+              One bot, unlimited servers, each with its own tiers.
+            </p>
+          </div>
+          <div className="card bg-panel p-5">
+            <span className="text-2xl" aria-hidden="true">
+              🏆
+            </span>
+            <p className="font-medium mt-3">Custom rank tiers</p>
+            <p className="text-white/50 text-sm mt-1">
+              Name, order, and assign a role to every tier you want.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-6 mt-16 text-sm">
+          <div className="flex-1 border-l-2 border-brand pl-4">
+            <p className="text-white/30">Step 1</p>
+            <p className="mt-1">
+              Run <code className="text-brand-light">/setup</code> in a channel
+            </p>
+          </div>
+          <div className="flex-1 border-l-2 border-brand pl-4">
+            <p className="text-white/30">Step 2</p>
+            <p className="mt-1">Members apply with a link</p>
+          </div>
+          <div className="flex-1 border-l-2 border-brand pl-4">
+            <p className="text-white/30">Step 3</p>
+            <p className="mt-1">Rankers tap a tier to promote</p>
+          </div>
+        </div>
       </main>
     </div>
   );

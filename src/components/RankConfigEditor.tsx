@@ -6,7 +6,14 @@ import SectionHeader from "@/components/SectionHeader";
 type Role = { id: string; name: string };
 type Channel = { id: string; name: string };
 type Emoji = { id: string; name: string; animated: boolean };
-type RankRow = { label: string; roleId: string; emoji: string | null };
+type EmojiSource = "custom" | "unicode";
+type RankRow = { label: string; roleId: string; emoji: string | null; emojiSource: EmojiSource };
+
+const CUSTOM_EMOJI_RE = /^<a?:[a-zA-Z0-9_]+:\d+>$/;
+
+function blankRank(): RankRow {
+  return { label: "", roleId: "", emoji: "", emojiSource: "custom" };
+}
 
 export default function RankConfigEditor({
   guildId,
@@ -21,36 +28,45 @@ export default function RankConfigEditor({
   roles: Role[];
   forumChannels: Channel[];
   emojis: Emoji[];
-  initial: { rankerRoleId: string | null; forumChannelId: string | null; ranks: RankRow[] };
+  initial: { rankerRoleId: string | null; forumChannelId: string | null; ranks: { label: string; roleId: string; emoji: string | null }[] };
 }) {
   const [rankerRoleId, setRankerRoleId] = useState(initial.rankerRoleId ?? "");
   const [forumChannelId, setForumChannelId] = useState(initial.forumChannelId ?? "");
   const [ranks, setRanks] = useState<RankRow[]>(
-    initial.ranks.length ? initial.ranks : [{ label: "", roleId: "", emoji: "" }]
+    initial.ranks.length
+      ? initial.ranks.map((r) => ({
+          ...r,
+          emojiSource: r.emoji && CUSTOM_EMOJI_RE.test(r.emoji) ? "custom" : "unicode",
+        }))
+      : [blankRank()]
   );
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   function updateRank(index: number, patch: Partial<RankRow>) {
     setRanks((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   }
 
   function addRank() {
-    setRanks((prev) => [...prev, { label: "", roleId: "", emoji: "" }]);
+    setRanks((prev) => [...prev, blankRank()]);
   }
 
   function removeRank(index: number) {
     setRanks((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function moveRank(index: number, dir: -1 | 1) {
+  function handleDrop(targetIndex: number) {
     setRanks((prev) => {
+      if (dragIndex === null || dragIndex === targetIndex) return prev;
       const next = prev.slice();
-      const target = index + dir;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
+      const [moved] = next.splice(dragIndex, 1);
+      next.splice(targetIndex, 0, moved);
       return next;
     });
+    setDragIndex(null);
+    setOverIndex(null);
   }
 
   async function save() {
@@ -59,7 +75,7 @@ export default function RankConfigEditor({
 
     const cleanRanks = ranks
       .filter((r) => r.label.trim() && r.roleId)
-      .map((r) => ({ ...r, emoji: r.emoji?.trim() || null }));
+      .map((r) => ({ label: r.label, roleId: r.roleId, emoji: r.emoji?.trim() || null }));
 
     const res = await fetch(`/api/guilds/${guildId}/config`, {
       method: "PUT",
@@ -137,38 +153,80 @@ export default function RankConfigEditor({
 
         <div className="flex flex-col gap-2">
           {ranks.map((rank, i) => (
-            <div key={i} className="card flex items-center gap-2 bg-base p-2">
-              <div className="flex flex-col gap-0.5 pl-1">
-                <button
-                  onClick={() => moveRank(i, -1)}
-                  disabled={i === 0}
-                  className="text-white/30 hover:text-brand-light disabled:opacity-20 text-xs leading-none"
-                  aria-label="Move up"
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => moveRank(i, 1)}
-                  disabled={i === ranks.length - 1}
-                  className="text-white/30 hover:text-brand-light disabled:opacity-20 text-xs leading-none"
-                  aria-label="Move down"
-                >
-                  ▼
-                </button>
+            <div
+              key={i}
+              draggable
+              onDragStart={() => setDragIndex(i)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setOverIndex(i);
+              }}
+              onDragLeave={() => setOverIndex((cur) => (cur === i ? null : cur))}
+              onDrop={() => handleDrop(i)}
+              onDragEnd={() => {
+                setDragIndex(null);
+                setOverIndex(null);
+              }}
+              className={
+                "card flex items-center gap-2 bg-base p-2 " +
+                (dragIndex === i ? "opacity-40 " : "") +
+                (overIndex === i && dragIndex !== i ? "border-brand" : "")
+              }
+            >
+              <span
+                className="text-white/30 cursor-grab active:cursor-grabbing select-none px-1 leading-none"
+                aria-hidden="true"
+                title="Drag to reorder"
+              >
+                ⠿
+              </span>
+
+              <div className="flex flex-col gap-1 w-32 shrink-0">
+                <div className="flex text-[10px] rounded overflow-hidden border border-white/10 w-fit">
+                  <button
+                    type="button"
+                    onClick={() => updateRank(i, { emojiSource: "custom", emoji: "" })}
+                    className={
+                      "px-2 py-0.5 " +
+                      (rank.emojiSource === "custom" ? "bg-brand/30 text-brand-light" : "text-white/40")
+                    }
+                  >
+                    Server
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateRank(i, { emojiSource: "unicode", emoji: "" })}
+                    className={
+                      "px-2 py-0.5 " +
+                      (rank.emojiSource === "unicode" ? "bg-brand/30 text-brand-light" : "text-white/40")
+                    }
+                  >
+                    Unicode
+                  </button>
+                </div>
+                {rank.emojiSource === "custom" ? (
+                  <select
+                    value={rank.emoji ?? ""}
+                    onChange={(e) => updateRank(i, { emoji: e.target.value || null })}
+                    className="w-full bg-panel rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
+                  >
+                    <option value="">No emoji</option>
+                    {emojis.map((e) => (
+                      <option key={e.id} value={`<${e.animated ? "a" : ""}:${e.name}:${e.id}>`}>
+                        :{e.name}:
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    placeholder="🏆"
+                    value={rank.emoji ?? ""}
+                    onChange={(e) => updateRank(i, { emoji: e.target.value })}
+                    className="w-full bg-panel rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
+                  />
+                )}
               </div>
 
-              <select
-                value={rank.emoji ?? ""}
-                onChange={(e) => updateRank(i, { emoji: e.target.value || null })}
-                className="w-40 bg-panel rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
-              >
-                <option value="">No emoji</option>
-                {emojis.map((e) => (
-                  <option key={e.id} value={`<${e.animated ? "a" : ""}:${e.name}:${e.id}>`}>
-                    :{e.name}:
-                  </option>
-                ))}
-              </select>
               <input
                 placeholder="Label, e.g. Gold Editor"
                 value={rank.label}
