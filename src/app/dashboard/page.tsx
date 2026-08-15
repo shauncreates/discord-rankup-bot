@@ -4,6 +4,8 @@ import Link from "next/link";
 import { authOptions, getUserAdminGuilds } from "@/lib/auth";
 import { getBotGuilds } from "@/lib/discord-rest";
 import SectionHeader from "@/components/SectionHeader";
+import LogoutButton from "@/components/LogoutButton";
+import Logo from "@/components/Logo";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -27,6 +29,11 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen px-6 py-12 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-8">
+        <Logo />
+        <LogoutButton />
+      </div>
+
       <SectionHeader
         icon="🖥️"
         title="Your servers"

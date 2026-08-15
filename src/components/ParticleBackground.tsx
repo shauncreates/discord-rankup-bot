@@ -20,8 +20,18 @@ export default function ParticleBackground() {
     let height = 0;
     let dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    type Particle = { x: number; y: number; r: number; vx: number; vy: number; a: number };
+    type Particle = {
+      x: number;
+      y: number;
+      r: number;
+      vy: number;
+      swayAmp: number;
+      swayFreq: number;
+      phase: number;
+      a: number;
+    };
     let particles: Particle[] = [];
+    let t = 0;
 
     function resize() {
       width = window.innerWidth;
@@ -38,8 +48,10 @@ export default function ParticleBackground() {
         x: Math.random() * width,
         y: Math.random() * height,
         r: Math.random() * 1.4 + 0.4,
-        vx: (Math.random() - 0.5) * 0.12,
-        vy: (Math.random() - 0.5) * 0.12,
+        vy: Math.random() * 0.35 + 0.12, // falling speed — snow-like
+        swayAmp: Math.random() * 0.6 + 0.15, // side-to-side drift width
+        swayFreq: Math.random() * 0.015 + 0.005, // sway speed
+        phase: Math.random() * Math.PI * 2,
         a: Math.random() * 0.5 + 0.15,
       }));
     }
@@ -55,13 +67,16 @@ export default function ParticleBackground() {
     }
 
     function step() {
+      t += 1;
       for (const p of particles) {
-        p.x += p.vx;
         p.y += p.vy;
-        if (p.x < 0) p.x = width;
-        if (p.x > width) p.x = 0;
-        if (p.y < 0) p.y = height;
-        if (p.y > height) p.y = 0;
+        p.x += Math.sin(t * p.swayFreq + p.phase) * p.swayAmp;
+        if (p.x < -5) p.x = width + 5;
+        if (p.x > width + 5) p.x = -5;
+        if (p.y > height + 5) {
+          p.y = -5;
+          p.x = Math.random() * width;
+        }
       }
       draw();
       frame = requestAnimationFrame(step);
