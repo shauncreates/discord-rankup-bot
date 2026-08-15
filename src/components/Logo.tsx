@@ -1,0 +1,26 @@
+export default function Logo({
+  withWordmark = true,
+  size = 28,
+}: {
+  withWordmark?: boolean;
+  size?: number;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 680 680"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <rect x="0" y="0" width="680" height="680" rx="140" fill="#0e1f18" />
+        <rect x="220" y="430" width="240" height="60" rx="10" fill="#1f6b4a" />
+        <rect x="250" y="340" width="180" height="60" rx="10" fill="#2fa86f" />
+        <rect x="280" y="250" width="120" height="60" rx="10" fill="#7fe8b3" />
+        <circle cx="340" cy="190" r="26" fill="#eafff2" />
+      </svg>
+      {withWordmark && <span className="font-semibold tracking-tight text-white">TierUp</span>}
+    </span>
+  );
+}

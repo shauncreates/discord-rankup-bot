@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { authOptions, getUserAdminGuilds } from "@/lib/auth";
 import { getBotGuilds } from "@/lib/discord-rest";
+import SectionHeader from "@/components/SectionHeader";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -26,8 +27,11 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen px-6 py-12 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-1">Your servers</h1>
-      <p className="text-white/50 mb-8">Pick a server to configure its rank tiers and roles.</p>
+      <SectionHeader
+        icon="🖥️"
+        title="Your servers"
+        subtitle="Pick a server to configure its rank tiers and roles."
+      />
 
       {manageable.length === 0 && (
         <p className="text-white/50 mb-6">
@@ -40,7 +44,7 @@ export default async function DashboardPage() {
           <Link
             key={g.id}
             href={`/dashboard/${g.id}`}
-            className="flex items-center gap-3 bg-panel hover:bg-panel/70 transition rounded-lg px-4 py-3"
+            className="card flex items-center gap-3 bg-panel px-4 py-3"
           >
             {g.icon ? (
               <img
@@ -49,7 +53,7 @@ export default async function DashboardPage() {
                 alt=""
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-blurple/40" />
+              <div className="w-8 h-8 rounded-full bg-brand/40" />
             )}
             <span className="font-medium">{g.name}</span>
           </Link>
@@ -68,10 +72,10 @@ export default async function DashboardPage() {
                 href={`${inviteUrl}&guild_id=${g.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center justify-between bg-panel/50 rounded-lg px-4 py-3"
+                className="card flex items-center justify-between bg-panel/50 px-4 py-3"
               >
                 <span>{g.name}</span>
-                <span className="text-blurple text-sm">Add bot →</span>
+                <span className="text-brand text-sm">Add bot →</span>
               </a>
             ))}
           </div>

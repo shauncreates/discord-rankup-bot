@@ -12,6 +12,7 @@ import {
   buildSetupComponents,
   buildSetupEmbed,
   CHANNEL_TYPE_GUILD_FORUM,
+  WATERMARK,
 } from "@/lib/discord-embeds";
 
 export const runtime = "nodejs"; // needed for Prisma
@@ -105,6 +106,30 @@ async function handleCommand(interaction: any) {
       data: {
         embeds: [buildSetupEmbed(guild.ranks)],
         components: buildSetupComponents(),
+      },
+    });
+  }
+
+  if (name === "help") {
+    return json({
+      type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        embeds: [
+          {
+            title: "TierUp — Commands",
+            color: 0x2fa86f,
+            fields: [
+              { name: "/setup", value: "Admins only — posts the Get Ranked panel in this channel." },
+              { name: "/help", value: "Shows this message." },
+            ],
+            description:
+              "**How it works:** click **Get Ranked** on the panel → fill out the form → " +
+              "a review thread is created → a ranker picks your tier → you get the matching role.\n\n" +
+              "More detail: https://tierup.seeshaun.xyz/help",
+            footer: { text: WATERMARK },
+          },
+        ],
+        flags: MessageFlags.EPHEMERAL,
       },
     });
   }

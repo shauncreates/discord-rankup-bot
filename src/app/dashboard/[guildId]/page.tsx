@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect, notFound } from "next/navigation";
 import { authOptions, userHasGuildAccess } from "@/lib/auth";
-import { getGuildChannels, getGuildRoles, getGuild } from "@/lib/discord-rest";
+import { getGuildChannels, getGuildEmojis, getGuildRoles, getGuild } from "@/lib/discord-rest";
 import { prisma } from "@/lib/db";
 import RankConfigEditor from "@/components/RankConfigEditor";
 
@@ -15,10 +15,11 @@ export default async function GuildConfigPage({ params }: { params: { guildId: s
   const hasAccess = await userHasGuildAccess(accessToken, params.guildId);
   if (!hasAccess) notFound();
 
-  const [discordGuild, roles, channels, savedConfig] = await Promise.all([
+  const [discordGuild, roles, channels, emojis, savedConfig] = await Promise.all([
     getGuild(params.guildId) as Promise<any>,
     getGuildRoles(params.guildId) as Promise<any[]>,
     getGuildChannels(params.guildId) as Promise<any[]>,
+    getGuildEmojis(params.guildId) as Promise<any[]>,
     prisma.guild.findUnique({
       where: { id: params.guildId },
       include: { ranks: { orderBy: { position: "asc" } } },
@@ -39,6 +40,7 @@ export default async function GuildConfigPage({ params }: { params: { guildId: s
         forumChannels={channels
           .filter((c) => c.type === CHANNEL_TYPE_GUILD_FORUM)
           .map((c) => ({ id: c.id, name: c.name }))}
+        emojis={emojis.map((e) => ({ id: e.id, name: e.name, animated: !!e.animated }))}
         initial={{
           rankerRoleId: savedConfig?.rankerRoleId ?? null,
           forumChannelId: savedConfig?.forumChannelId ?? null,

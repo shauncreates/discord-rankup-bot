@@ -6,6 +6,10 @@ import type { Rank } from "@prisma/client";
 export const CHANNEL_TYPE_GUILD_FORUM = 15;
 export const CHANNEL_TYPE_PUBLIC_THREAD = 11;
 
+// Change this to whatever you want shown — a name, a handle, a small tagline.
+// Every embed's footer appends this, so it only needs updating in one place.
+export const WATERMARK = "© seeshaun 2026";
+
 export function buildSetupEmbed(ranks: Rank[]) {
   const lines = ranks
     .slice()
@@ -20,7 +24,7 @@ export function buildSetupEmbed(ranks: Rank[]) {
       "**Rank Tiers** (Highest → Lowest)\n" +
       lines,
     color: 0x1f8b4c,
-    footer: { text: "Select the button below to begin your submission." },
+    footer: { text: `Select the button below to begin your submission. • ${WATERMARK}` },
   };
 }
 
@@ -63,8 +67,8 @@ export function buildApplicationEmbed(opts: {
     ],
     footer: {
       text: opts.footerExtra
-        ? `${opts.footerExtra} • Applicant ID: ${opts.userId}`
-        : `Applicant ID: ${opts.userId}`,
+        ? `${opts.footerExtra} • Applicant ID: ${opts.userId} • ${WATERMARK}`
+        : `Applicant ID: ${opts.userId} • ${WATERMARK}`,
     },
   };
 }

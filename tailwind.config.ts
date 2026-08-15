@@ -5,9 +5,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        blurple: "#5865F2",
-        panel: "#1e1f24",
-        base: "#15161a",
+        brand: "#2fa86f", // primary accent — buttons, links, focus rings
+        "brand-light": "#7fe8b3", // hover/highlight accent
+        panel: "#161f1b", // card/input backgrounds — green-tinted dark
+        base: "#0e1512", // page background — green-tinted near-black
       },
     },
   },

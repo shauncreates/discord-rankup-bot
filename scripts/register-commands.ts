@@ -22,6 +22,11 @@ const commands = [
     description: "Post the GET RANKED embed in this channel.",
     default_member_permissions: String(1 << 3), // ADMINISTRATOR
   },
+  {
+    name: "help",
+    description: "Show available commands and how ranking works.",
+    // No default_member_permissions — everyone can use this one.
+  },
 ];
 
 async function main() {

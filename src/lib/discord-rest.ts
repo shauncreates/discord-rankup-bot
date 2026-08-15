@@ -78,6 +78,10 @@ export function getGuildRoles(guildId: string) {
   return discordFetch(`/guilds/${guildId}/roles`);
 }
 
+export function getGuildEmojis(guildId: string) {
+  return discordFetch(`/guilds/${guildId}/emojis`);
+}
+
 export function getGuildChannels(guildId: string) {
   return discordFetch(`/guilds/${guildId}/channels`);
 }

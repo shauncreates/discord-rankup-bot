@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import SectionHeader from "@/components/SectionHeader";
 
 type Role = { id: string; name: string };
 type Channel = { id: string; name: string };
+type Emoji = { id: string; name: string; animated: boolean };
 type RankRow = { label: string; roleId: string; emoji: string | null };
 
 export default function RankConfigEditor({
@@ -11,12 +13,14 @@ export default function RankConfigEditor({
   guildName,
   roles,
   forumChannels,
+  emojis,
   initial,
 }: {
   guildId: string;
   guildName: string;
   roles: Role[];
   forumChannels: Channel[];
+  emojis: Emoji[];
   initial: { rankerRoleId: string | null; forumChannelId: string | null; ranks: RankRow[] };
 }) {
   const [rankerRoleId, setRankerRoleId] = useState(initial.rankerRoleId ?? "");
@@ -78,16 +82,17 @@ export default function RankConfigEditor({
   }
 
   return (
-    <div className="flex flex-col gap-10">
-      <section>
-        <h2 className="text-sm uppercase tracking-wide text-white/40 mb-3">Ranker role</h2>
-        <p className="text-white/50 text-sm mb-3">
-          Members with this role can click the rank buttons and promote applicants.
-        </p>
+    <div className="flex flex-col gap-6">
+      <section className="card bg-panel p-5">
+        <SectionHeader
+          icon="🛡️"
+          title="Ranker role"
+          subtitle="Members with this role can click the rank buttons and promote applicants."
+        />
         <select
           value={rankerRoleId}
           onChange={(e) => setRankerRoleId(e.target.value)}
-          className="w-full bg-panel rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blurple"
+          className="w-full bg-base rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand"
         >
           <option value="">Select a role…</option>
           {roles.map((r) => (
@@ -98,15 +103,16 @@ export default function RankConfigEditor({
         </select>
       </section>
 
-      <section>
-        <h2 className="text-sm uppercase tracking-wide text-white/40 mb-3">Application forum</h2>
-        <p className="text-white/50 text-sm mb-3">
-          The forum channel where "Get Ranked" applications turn into threads.
-        </p>
+      <section className="card bg-panel p-5">
+        <SectionHeader
+          icon="💬"
+          title="Application forum"
+          subtitle={'The forum channel where "Get Ranked" applications turn into threads.'}
+        />
         <select
           value={forumChannelId}
           onChange={(e) => setForumChannelId(e.target.value)}
-          className="w-full bg-panel rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blurple"
+          className="w-full bg-base rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand"
         >
           <option value="">Select a forum channel…</option>
           {forumChannels.map((c) => (
@@ -122,20 +128,21 @@ export default function RankConfigEditor({
         )}
       </section>
 
-      <section>
-        <h2 className="text-sm uppercase tracking-wide text-white/40 mb-3">Rank tiers</h2>
-        <p className="text-white/50 text-sm mb-3">
-          Highest rank first. Each becomes a button; picking one assigns the linked role.
-        </p>
+      <section className="card bg-panel p-5">
+        <SectionHeader
+          icon="🏆"
+          title="Rank tiers"
+          subtitle="Highest rank first. Each becomes a button; picking one assigns the linked role."
+        />
 
         <div className="flex flex-col gap-2">
           {ranks.map((rank, i) => (
-            <div key={i} className="flex items-center gap-2 bg-panel rounded-lg p-2">
+            <div key={i} className="card flex items-center gap-2 bg-base p-2">
               <div className="flex flex-col gap-0.5 pl-1">
                 <button
                   onClick={() => moveRank(i, -1)}
                   disabled={i === 0}
-                  className="text-white/30 hover:text-white disabled:opacity-20 text-xs leading-none"
+                  className="text-white/30 hover:text-brand-light disabled:opacity-20 text-xs leading-none"
                   aria-label="Move up"
                 >
                   ▲
@@ -143,29 +150,35 @@ export default function RankConfigEditor({
                 <button
                   onClick={() => moveRank(i, 1)}
                   disabled={i === ranks.length - 1}
-                  className="text-white/30 hover:text-white disabled:opacity-20 text-xs leading-none"
+                  className="text-white/30 hover:text-brand-light disabled:opacity-20 text-xs leading-none"
                   aria-label="Move down"
                 >
                   ▼
                 </button>
               </div>
 
-              <input
-                placeholder="Emoji (optional)"
+              <select
                 value={rank.emoji ?? ""}
-                onChange={(e) => updateRank(i, { emoji: e.target.value })}
-                className="w-28 bg-base rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-blurple"
-              />
+                onChange={(e) => updateRank(i, { emoji: e.target.value || null })}
+                className="w-40 bg-panel rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
+              >
+                <option value="">No emoji</option>
+                {emojis.map((e) => (
+                  <option key={e.id} value={`<${e.animated ? "a" : ""}:${e.name}:${e.id}>`}>
+                    :{e.name}:
+                  </option>
+                ))}
+              </select>
               <input
                 placeholder="Label, e.g. Gold Editor"
                 value={rank.label}
                 onChange={(e) => updateRank(i, { label: e.target.value })}
-                className="flex-1 bg-base rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-blurple"
+                className="flex-1 bg-panel rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               />
               <select
                 value={rank.roleId}
                 onChange={(e) => updateRank(i, { roleId: e.target.value })}
-                className="w-40 bg-base rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-blurple"
+                className="w-40 bg-panel rounded-md px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
               >
                 <option value="">Role…</option>
                 {roles.map((r) => (
@@ -187,21 +200,27 @@ export default function RankConfigEditor({
 
         <button
           onClick={addRank}
-          className="mt-3 text-sm text-blurple hover:brightness-125"
+          className="mt-3 text-sm text-brand hover:text-brand-light transition"
         >
           + Add rank tier
         </button>
+        {emojis.length === 0 && (
+          <p className="text-white/30 text-xs mt-2">
+            No custom emojis found in this server — the emoji dropdown will just show "No emoji"
+            until you upload some in Discord.
+          </p>
+        )}
       </section>
 
       <div className="flex items-center gap-4">
         <button
           onClick={save}
           disabled={status === "saving"}
-          className="bg-blurple hover:brightness-110 transition rounded-lg px-5 py-2.5 font-medium disabled:opacity-60"
+          className="bg-brand hover:brightness-110 transition rounded-lg px-5 py-2.5 font-medium disabled:opacity-60"
         >
           {status === "saving" ? "Saving…" : "Save changes"}
         </button>
-        {status === "saved" && <span className="text-green-400 text-sm">Saved ✓</span>}
+        {status === "saved" && <span className="text-brand-light text-sm">Saved ✓</span>}
         {status === "error" && <span className="text-red-400 text-sm">{errorMsg || "Failed to save"}</span>}
       </div>
 

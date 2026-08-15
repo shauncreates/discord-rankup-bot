@@ -3,11 +3,26 @@
 @tailwind utilities;
 
 body {
-  background-color: #15161a;
-  color: #e7e8ea;
+  background-color: #0e1512;
+  color: #e7ece9;
 }
 
 ::selection {
-  background-color: #5865f2;
+  background-color: #2fa86f;
   color: white;
+}
+
+/* Card treatment matching the reference sites: subtle border, soft shadow,
+   gentle lift on hover. Use alongside bg-panel. */
+.card {
+  border: 1px solid rgba(127, 232, 179, 0.12);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:hover {
+  border-color: rgba(127, 232, 179, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
