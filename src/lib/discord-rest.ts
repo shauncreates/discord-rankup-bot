@@ -70,6 +70,32 @@ export function addRoleToMember(guildId: string, userId: string, roleId: string)
   });
 }
 
+export function removeRoleFromMember(guildId: string, userId: string, roleId: string) {
+  return discordFetch(`/guilds/${guildId}/members/${userId}/roles/${roleId}`, {
+    method: "DELETE",
+  });
+}
+
+export function getGuildMember(guildId: string, userId: string) {
+  return discordFetch(`/guilds/${guildId}/members/${userId}`);
+}
+
+// DMs require opening a DM channel first, then sending into it like any
+// other channel. Wrap calls to this in try/catch — users with DMs closed
+// to the bot will make this fail, and that should never block the rest of
+// the ranking flow.
+async function createDM(userId: string) {
+  return discordFetch(`/users/@me/channels`, {
+    method: "POST",
+    body: JSON.stringify({ recipient_id: userId }),
+  });
+}
+
+export async function sendDM(userId: string, message: { content?: string; embeds?: any[] }) {
+  const dm: any = await createDM(userId);
+  return sendMessage(dm.id, message);
+}
+
 export function deleteChannel(channelId: string) {
   return discordFetch(`/channels/${channelId}`, { method: "DELETE" });
 }

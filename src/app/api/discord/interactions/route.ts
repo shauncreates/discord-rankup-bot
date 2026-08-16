@@ -2,16 +2,17 @@ import { verifyKey } from "discord-interactions";
 import { prisma } from "@/lib/db";
 import {
   addRoleToMember,
+  removeRoleFromMember,
+  getGuildMember,
   createThreadInForum,
-  editMessage,
   sendMessage,
+  sendDM,
 } from "@/lib/discord-rest";
 import {
   buildApplicationEmbed,
   buildRankButtonRows,
   buildSetupComponents,
   buildSetupEmbed,
-  CHANNEL_TYPE_GUILD_FORUM,
   WATERMARK,
 } from "@/lib/discord-embeds";
 
@@ -25,6 +26,13 @@ const ResponseType = {
   MODAL: 9,
 };
 const MessageFlags = { EPHEMERAL: 1 << 6 };
+
+// Used whenever a server hasn't configured any custom application questions
+// yet — keeps the original "Edit Link" / "App Used" behavior as the default.
+const DEFAULT_QUESTIONS = [
+  { id: "edit_link", label: "Edit Link", placeholder: "https://tiktok.com/..." },
+  { id: "app_used", label: "App Used", placeholder: "e.g., CapCut, Alight Motion, etc." },
+];
 
 export async function POST(request: Request) {
   const signature = request.headers.get("x-signature-ed25519");
@@ -78,7 +86,21 @@ function json(body: unknown) {
   });
 }
 
-// ── /setup ──────────────────────────────────────────────────────────────
+function displayTag(interaction: any) {
+  const user = interaction.member?.user ?? interaction.user;
+  return user?.global_name ?? user?.username ?? "someone";
+}
+
+function isRanker(guild: { rankerRoleId: string | null }, interaction: any) {
+  const memberRoles: string[] = interaction.member?.roles ?? [];
+  return !!guild.rankerRoleId && memberRoles.includes(guild.rankerRoleId);
+}
+
+function hoursSince(date: Date) {
+  return (Date.now() - date.getTime()) / (1000 * 60 * 60);
+}
+
+// ── /setup, /help ───────────────────────────────────────────────────────
 async function handleCommand(interaction: any) {
   const name = interaction.data.name;
 
@@ -124,7 +146,8 @@ async function handleCommand(interaction: any) {
             ],
             description:
               "**How it works:** click **Get Ranked** on the panel → fill out the form → " +
-              "a review thread is created → a ranker picks your tier → you get the matching role.\n\n" +
+              "a review thread is created → a ranker picks your tier (or denies it) → " +
+              "you get a DM either way.\n\n" +
               "More detail: https://tierup.seeshaun.xyz/help",
             footer: { text: WATERMARK },
           },
@@ -145,47 +168,13 @@ async function handleComponent(interaction: any) {
   const customId: string = interaction.data.custom_id;
 
   if (customId === "get_ranked_button") {
-    return json({
-      type: ResponseType.MODAL,
-      data: {
-        custom_id: "rank_application_modal",
-        title: "Rank Application",
-        components: [
-          {
-            type: 1,
-            components: [
-              {
-                type: 4,
-                custom_id: "edit_link",
-                label: "Edit Link",
-                style: 1,
-                placeholder: "https://tiktok.com/...",
-                required: true,
-                max_length: 256,
-              },
-            ],
-          },
-          {
-            type: 1,
-            components: [
-              {
-                type: 4,
-                custom_id: "app_used",
-                label: "App Used",
-                style: 1,
-                placeholder: "e.g., CapCut, Alight Motion, etc.",
-                required: true,
-                max_length: 128,
-              },
-            ],
-          },
-        ],
-      },
-    });
+    return await handleGetRankedButton(interaction);
   }
-
   if (customId.startsWith("rank:")) {
     return await handleRankButton(interaction, customId);
+  }
+  if (customId.startsWith("deny:")) {
+    return await handleDenyButton(interaction, customId);
   }
 
   return json({
@@ -194,14 +183,78 @@ async function handleComponent(interaction: any) {
   });
 }
 
+async function handleGetRankedButton(interaction: any) {
+  const guildId = interaction.guild_id;
+  const applicantId = interaction.member.user.id;
+
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    include: { questions: { orderBy: { position: "asc" } } },
+  });
+
+  // Cooldown / duplicate-application check, before wasting the applicant's
+  // time filling out a form we're going to reject anyway.
+  const latest = await prisma.application.findFirst({
+    where: { guildId, applicantId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (latest?.status === "PENDING") {
+    return json({
+      type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: "⏰ You already have a pending application — wait for it to be reviewed first.",
+        flags: MessageFlags.EPHEMERAL,
+      },
+    });
+  }
+
+  const cooldownHours = guild?.reapplyCooldownHours ?? 24;
+  if (latest?.status === "DENIED" && latest.reviewedAt && cooldownHours > 0) {
+    const elapsed = hoursSince(latest.reviewedAt);
+    if (elapsed < cooldownHours) {
+      const remaining = Math.ceil(cooldownHours - elapsed);
+      return json({
+        type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `⏳ You can reapply in about ${remaining} hour${remaining === 1 ? "" : "s"}.`,
+          flags: MessageFlags.EPHEMERAL,
+        },
+      });
+    }
+  }
+
+  const questions = guild?.questions.length ? guild.questions : DEFAULT_QUESTIONS;
+
+  return json({
+    type: ResponseType.MODAL,
+    data: {
+      custom_id: "rank_application_modal",
+      title: "Rank Application",
+      components: questions.slice(0, 5).map((q) => ({
+        type: 1,
+        components: [
+          {
+            type: 4,
+            custom_id: q.id,
+            label: q.label,
+            style: 1,
+            placeholder: "placeholder" in q ? q.placeholder : undefined,
+            required: true,
+            max_length: 256,
+          },
+        ],
+      })),
+    },
+  });
+}
+
 async function handleRankButton(interaction: any, customId: string) {
   const [, rankId, applicantId] = customId.split(":");
   const guildId = interaction.guild_id;
 
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-  const memberRoles: string[] = interaction.member?.roles ?? [];
-
-  if (!guild?.rankerRoleId || !memberRoles.includes(guild.rankerRoleId)) {
+  if (!isRanker(guild ?? { rankerRoleId: null }, interaction)) {
     return json({
       type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -219,17 +272,41 @@ async function handleRankButton(interaction: any, customId: string) {
     });
   }
 
-  // Assign the Discord role. If this fails (missing perms / role hierarchy),
-  // still update the message but let the ranker know.
+  const allRanks = await prisma.rank.findMany({ where: { guildId } });
+
+  // Swap: remove any other configured rank role the applicant currently
+  // holds before adding the new one, so ranking someone up (or down) moves
+  // them instead of stacking every role they've ever been given.
   let roleAssignFailed = false;
   try {
+    const member: any = await getGuildMember(guildId, applicantId);
+    const currentRoles: string[] = member.roles ?? [];
+    const otherRankRoleIds = allRanks.filter((r) => r.id !== rank.id).map((r) => r.roleId);
+    const toRemove = currentRoles.filter((rid) => otherRankRoleIds.includes(rid));
+
+    await Promise.allSettled(toRemove.map((rid) => removeRoleFromMember(guildId, applicantId, rid)));
     await addRoleToMember(guildId, applicantId, rank.roleId);
   } catch (err) {
     console.error("Failed to assign role:", err);
     roleAssignFailed = true;
   }
 
-  const allRanks = await prisma.rank.findMany({ where: { guildId } });
+  // Update the audit record for this application.
+  const application = await prisma.application.findFirst({
+    where: { guildId, threadId: interaction.channel_id, status: "PENDING" },
+  });
+  if (application) {
+    await prisma.application.update({
+      where: { id: application.id },
+      data: {
+        status: "PROMOTED",
+        assignedRankLabel: rank.label,
+        reviewerId: interaction.member.user.id,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+
   const oldEmbed = interaction.message.embeds[0];
   const newEmbed = {
     ...oldEmbed,
@@ -247,7 +324,6 @@ async function handleRankButton(interaction: any, customId: string) {
     footer: { text: `Ranked by ${displayTag(interaction)} • ${oldEmbed.footer?.text ?? ""}` },
   };
 
-  // Respond by editing the original message in place, with buttons disabled.
   const responsePromise = json({
     type: ResponseType.UPDATE_MESSAGE,
     data: {
@@ -260,29 +336,83 @@ async function handleRankButton(interaction: any, customId: string) {
     await sendMessage(interaction.channel_id, {
       content: `🎉 <@${applicantId}> has been ranked **${rank.label}** by <@${interaction.member.user.id}>!`,
     });
+
+    try {
+      await sendDM(applicantId, {
+        content:
+          `🎉 Your application in **${guild?.name ?? "the server"}** was reviewed — ` +
+          `you were ranked **${rank.label}**!`,
+      });
+    } catch {
+      // DMs closed — not fatal, the channel announcement above still covers it.
+    }
   }
 
   return responsePromise;
 }
 
-function displayTag(interaction: any) {
-  const user = interaction.member?.user ?? interaction.user;
-  return user?.global_name ?? user?.username ?? "someone";
-}
+async function handleDenyButton(interaction: any, customId: string) {
+  const [, applicantId] = customId.split(":");
+  const guildId = interaction.guild_id;
 
-// ── Modal submit (application form) ────────────────────────────────────
-async function handleModalSubmit(interaction: any) {
-  if (interaction.data.custom_id !== "rank_application_modal") {
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!isRanker(guild ?? { rankerRoleId: null }, interaction)) {
     return json({
       type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-      data: { content: "Unknown form.", flags: MessageFlags.EPHEMERAL },
+      data: {
+        content: "❌ You don't have permission to deny applications. Only the ranker role can use these buttons.",
+        flags: MessageFlags.EPHEMERAL,
+      },
     });
   }
 
+  return json({
+    type: ResponseType.MODAL,
+    data: {
+      custom_id: `deny_reason_modal:${applicantId}`,
+      title: "Deny application",
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 4,
+              custom_id: "reason",
+              label: "Reason (shown to the applicant)",
+              style: 2, // paragraph
+              placeholder: "e.g. Needs more transitions, resubmit when ready.",
+              required: false,
+              max_length: 512,
+            },
+          ],
+        },
+      ],
+    },
+  });
+}
+
+// ── Modal submit ────────────────────────────────────────────────────────
+async function handleModalSubmit(interaction: any) {
+  const customId: string = interaction.data.custom_id;
+
+  if (customId === "rank_application_modal") {
+    return await handleApplicationSubmit(interaction);
+  }
+  if (customId.startsWith("deny_reason_modal:")) {
+    return await handleDenySubmit(interaction, customId);
+  }
+
+  return json({
+    type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+    data: { content: "Unknown form.", flags: MessageFlags.EPHEMERAL },
+  });
+}
+
+async function handleApplicationSubmit(interaction: any) {
   const guildId = interaction.guild_id;
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
-    include: { ranks: true },
+    include: { ranks: true, questions: { orderBy: { position: "asc" } } },
   });
 
   if (!guild?.forumChannelId) {
@@ -295,11 +425,13 @@ async function handleModalSubmit(interaction: any) {
     });
   }
 
-  const fields: Record<string, string> = {};
+  const questions = guild.questions.length ? guild.questions : DEFAULT_QUESTIONS;
+  const submitted: Record<string, string> = {};
   for (const row of interaction.data.components) {
     const comp = row.components[0];
-    fields[comp.custom_id] = comp.value;
+    submitted[comp.custom_id] = comp.value;
   }
+  const answers = questions.map((q) => ({ label: q.label, value: submitted[q.id] ?? "" }));
 
   const user = interaction.member?.user ?? interaction.user;
   const applicantId: string = user.id;
@@ -311,8 +443,7 @@ async function handleModalSubmit(interaction: any) {
     userId: applicantId,
     userMention: `<@${applicantId}>`,
     avatarUrl,
-    editLink: fields.edit_link,
-    appUsed: fields.app_used,
+    answers,
     status: "⏰ Waiting for rank...",
     color: 0xf1c40f,
   });
@@ -328,8 +459,10 @@ async function handleModalSubmit(interaction: any) {
     }
   );
 
-  // Schedule auto-deletion 4 hours from now (handled by the cron route,
-  // since there's no long-running process to `sleep` here).
+  await prisma.application.create({
+    data: { guildId, applicantId, threadId: thread.id, status: "PENDING", answers },
+  });
+
   const deleteAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
   await prisma.pendingThreadDeletion.create({
     data: { guildId, channelId: thread.id, deleteAt },
@@ -349,6 +482,71 @@ async function handleModalSubmit(interaction: any) {
         `⏰ This thread will be automatically deleted in 4 hours.\n` +
         `Please wait for a ranker to review your application.`,
       flags: MessageFlags.EPHEMERAL,
+    },
+  });
+}
+
+async function handleDenySubmit(interaction: any, customId: string) {
+  const [, applicantId] = customId.split(":");
+  const guildId = interaction.guild_id;
+  const reason: string =
+    interaction.data.components?.[0]?.components?.[0]?.value?.trim() || "No reason given.";
+
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const allRanks = await prisma.rank.findMany({ where: { guildId } });
+
+  const application = await prisma.application.findFirst({
+    where: { guildId, threadId: interaction.channel_id, status: "PENDING" },
+  });
+  if (application) {
+    await prisma.application.update({
+      where: { id: application.id },
+      data: {
+        status: "DENIED",
+        reason,
+        reviewerId: interaction.member.user.id,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+
+  try {
+    await sendDM(applicantId, {
+      content:
+        `Your application in **${guild?.name ?? "the server"}** was reviewed and wasn't approved this time.\n` +
+        `Reason: ${reason}`,
+    });
+  } catch {
+    // DMs closed — not fatal.
+  }
+
+  await sendMessage(interaction.channel_id, {
+    content: `❌ Application denied by <@${interaction.member.user.id}>.\nReason: ${reason}`,
+  });
+
+  // Modal submits triggered from a message component carry the original
+  // message, so we can edit it in place same as the approve flow.
+  const oldEmbed = interaction.message?.embeds?.[0];
+  if (!oldEmbed) {
+    return json({ type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE, data: { content: "Denied.", flags: MessageFlags.EPHEMERAL } });
+  }
+
+  const newEmbed = {
+    ...oldEmbed,
+    color: 0xed4245,
+    fields: [
+      ...oldEmbed.fields.filter((f: any) => f.name !== "Status" && f.name !== "Reason"),
+      { name: "Status", value: "❌ Denied" },
+      { name: "Reason", value: reason },
+    ],
+    footer: { text: `Denied by ${displayTag(interaction)} • ${oldEmbed.footer?.text ?? ""}` },
+  };
+
+  return json({
+    type: ResponseType.UPDATE_MESSAGE,
+    data: {
+      embeds: [newEmbed],
+      components: buildRankButtonRows(allRanks, applicantId, true),
     },
   });
 }

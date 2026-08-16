@@ -49,22 +49,26 @@ export function buildApplicationEmbed(opts: {
   userId: string;
   userMention: string;
   avatarUrl: string;
-  editLink: string;
-  appUsed: string;
+  answers: { label: string; value: string }[];
   status: string;
   color: number;
   footerExtra?: string;
+  reason?: string | null;
 }) {
+  const fields: { name: string; value: string; inline?: boolean }[] = [
+    { name: "User", value: opts.userMention },
+    ...opts.answers.map((a) => ({ name: a.label, value: a.value.slice(0, 1024) || "—" })),
+    { name: "Status", value: opts.status },
+  ];
+  if (opts.reason) {
+    fields.push({ name: "Reason", value: opts.reason.slice(0, 1024) });
+  }
+
   return {
     title: "Rank Application",
     color: opts.color,
     thumbnail: { url: opts.avatarUrl },
-    fields: [
-      { name: "User", value: opts.userMention, inline: false },
-      { name: "Edit Link", value: `[Click here](${opts.editLink})`, inline: false },
-      { name: "App Used", value: opts.appUsed, inline: false },
-      { name: "Status", value: opts.status, inline: false },
-    ],
+    fields,
     footer: {
       text: opts.footerExtra
         ? `${opts.footerExtra} • Applicant ID: ${opts.userId} • ${WATERMARK}`
@@ -91,6 +95,21 @@ export function buildRankButtonRows(ranks: Rank[], applicantId: string, disabled
       })),
     });
   }
+
+  // Deny gets its own row so it never gets mixed in with rank tier buttons.
+  rows.push({
+    type: 1,
+    components: [
+      {
+        type: 2,
+        style: 4, // danger
+        label: "Deny",
+        custom_id: `deny:${applicantId}`,
+        emoji: { name: "✖️" },
+        disabled,
+      },
+    ],
+  });
 
   return rows;
 }

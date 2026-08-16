@@ -28,10 +28,20 @@ export default function RankConfigEditor({
   roles: Role[];
   forumChannels: Channel[];
   emojis: Emoji[];
-  initial: { rankerRoleId: string | null; forumChannelId: string | null; ranks: { label: string; roleId: string; emoji: string | null }[] };
+  initial: {
+    rankerRoleId: string | null;
+    forumChannelId: string | null;
+    reapplyCooldownHours: number;
+    ranks: { label: string; roleId: string; emoji: string | null }[];
+    questions: { label: string }[];
+  };
 }) {
   const [rankerRoleId, setRankerRoleId] = useState(initial.rankerRoleId ?? "");
   const [forumChannelId, setForumChannelId] = useState(initial.forumChannelId ?? "");
+  const [cooldownHours, setCooldownHours] = useState(initial.reapplyCooldownHours ?? 24);
+  const [questions, setQuestions] = useState<string[]>(
+    initial.questions.length ? initial.questions.map((q) => q.label) : ["Edit Link", "App Used"]
+  );
   const [ranks, setRanks] = useState<RankRow[]>(
     initial.ranks.length
       ? initial.ranks.map((r) => ({
@@ -84,7 +94,9 @@ export default function RankConfigEditor({
         rankerRoleId: rankerRoleId || null,
         forumChannelId: forumChannelId || null,
         guildName,
+        reapplyCooldownHours: cooldownHours,
         ranks: cleanRanks,
+        questions: questions.filter((q) => q.trim()).map((label) => ({ label })),
       }),
     });
 
@@ -142,6 +154,61 @@ export default function RankConfigEditor({
             No forum channels found in this server yet — create one in Discord first.
           </p>
         )}
+      </section>
+
+      <section className="card bg-panel p-5">
+        <SectionHeader
+          icon="📝"
+          title="Application questions"
+          subtitle="Up to 3 fields shown in the form when someone clicks Get Ranked."
+        />
+        <div className="flex flex-col gap-2">
+          {questions.map((q, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={q}
+                onChange={(e) =>
+                  setQuestions((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
+                }
+                placeholder="e.g. Portfolio Link"
+                className="flex-1 bg-base rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
+              />
+              <button
+                onClick={() => setQuestions((prev) => prev.filter((_, idx) => idx !== i))}
+                className="text-white/40 hover:text-red-400 px-2"
+                aria-label="Remove question"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+        {questions.length < 3 && (
+          <button
+            onClick={() => setQuestions((prev) => [...prev, ""])}
+            className="mt-3 text-sm text-brand hover:text-brand-light transition"
+          >
+            + Add question
+          </button>
+        )}
+      </section>
+
+      <section className="card bg-panel p-5">
+        <SectionHeader
+          icon="⏳"
+          title="Reapply cooldown"
+          subtitle="How long a denied applicant must wait before applying again. Set to 0 to disable."
+        />
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            value={cooldownHours}
+            onChange={(e) => setCooldownHours(Math.max(0, Number(e.target.value) || 0))}
+            className="w-24 bg-base rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
+          />
+          <span className="text-white/50 text-sm">hours</span>
+        </div>
       </section>
 
       <section className="card bg-panel p-5">
