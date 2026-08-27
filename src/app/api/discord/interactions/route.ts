@@ -93,14 +93,19 @@ function displayTag(interaction: any) {
 
 function isRanker(guild: { rankerRoleId: string | null }, interaction: any) {
   const memberRoles: string[] = interaction.member?.roles ?? [];
-  return !!guild.rankerRoleId && memberRoles.includes(guild.rankerRoleId);
+  const hasRankerRole = !!guild.rankerRoleId && memberRoles.includes(guild.rankerRoleId);
+  // Also allow anyone with server-wide Administrator, so an admin without
+  // the ranker role assigned to themselves can still check the leaderboard.
+  const permBits = BigInt(interaction.member?.permissions ?? "0");
+  const isAdmin = (permBits & BigInt(0x8)) === BigInt(0x8);
+  return hasRankerRole || isAdmin;
 }
 
 function hoursSince(date: Date) {
   return (Date.now() - date.getTime()) / (1000 * 60 * 60);
 }
 
-// ── /setup, /help ───────────────────────────────────────────────────────
+// ── /setup, /help, /leaderboard ──────────────────────────────────────────
 async function handleCommand(interaction: any) {
   const name = interaction.data.name;
 
@@ -142,6 +147,7 @@ async function handleCommand(interaction: any) {
             color: 0x2fa86f,
             fields: [
               { name: "/setup", value: "Admins only — posts the Get Ranked panel in this channel." },
+              { name: "/leaderboard", value: "Rankers/admins only — shows ranker activity." },
               { name: "/help", value: "Shows this message." },
             ],
             description:
@@ -157,9 +163,95 @@ async function handleCommand(interaction: any) {
     });
   }
 
+  if (name === "leaderboard") {
+    return await handleLeaderboard(interaction);
+  }
+
   return json({
     type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
     data: { content: "Unknown command.", flags: MessageFlags.EPHEMERAL },
+  });
+}
+
+async function handleLeaderboard(interaction: any) {
+  const guildId = interaction.guild_id;
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+
+  if (!isRanker(guild ?? { rankerRoleId: null }, interaction)) {
+    return json({
+      type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: "❌ Only rankers or admins can view the leaderboard.",
+        flags: MessageFlags.EPHEMERAL,
+      },
+    });
+  }
+
+  const daysOption = interaction.data.options?.find((o: any) => o.name === "days")?.value as
+    | number
+    | undefined;
+  const since = daysOption ? new Date(Date.now() - daysOption * 24 * 60 * 60 * 1000) : undefined;
+
+  const reviewed = await prisma.application.findMany({
+    where: {
+      guildId,
+      status: { in: ["PROMOTED", "DENIED"] },
+      reviewerId: { not: null },
+      ...(since ? { reviewedAt: { gte: since } } : {}),
+    },
+    select: { reviewerId: true, status: true, assignedRankLabel: true },
+  });
+
+  const byRanker = new Map<string, { promoted: number; denied: number }>();
+  for (const r of reviewed) {
+    const entry = byRanker.get(r.reviewerId!) ?? { promoted: 0, denied: 0 };
+    if (r.status === "PROMOTED") entry.promoted++;
+    else entry.denied++;
+    byRanker.set(r.reviewerId!, entry);
+  }
+  const rankerRows = [...byRanker.entries()]
+    .sort((a, b) => b[1].promoted + b[1].denied - (a[1].promoted + a[1].denied))
+    .slice(0, 10);
+
+  const byTier = new Map<string, number>();
+  for (const r of reviewed) {
+    if (r.status === "PROMOTED" && r.assignedRankLabel) {
+      byTier.set(r.assignedRankLabel, (byTier.get(r.assignedRankLabel) ?? 0) + 1);
+    }
+  }
+  const tierRows = [...byTier.entries()].sort((a, b) => b[1] - a[1]);
+
+  const rangeLabel = daysOption ? `Last ${daysOption} day${daysOption === 1 ? "" : "s"}` : "All-time";
+
+  const leaderboardText = rankerRows.length
+    ? rankerRows
+        .map(([reviewerId, r], i) => {
+          const total = r.promoted + r.denied;
+          return `**${i + 1}.** <@${reviewerId}> — ${total} reviewed (${r.promoted} promoted, ${r.denied} denied)`;
+        })
+        .join("\n")
+    : "No reviews in this window.";
+
+  const tierText = tierRows.length
+    ? tierRows.map(([label, count]) => `**${label}** — ${count} assigned`).join("\n")
+    : "No promotions in this window.";
+
+  return json({
+    type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+    data: {
+      embeds: [
+        {
+          title: "📊 Ranker Leaderboard",
+          color: 0x2fa86f,
+          description: `**${rangeLabel}**`,
+          fields: [
+            { name: "Top rankers", value: leaderboardText },
+            { name: "Rank distribution", value: tierText },
+          ],
+          footer: { text: WATERMARK },
+        },
+      ],
+    },
   });
 }
 
@@ -192,8 +284,6 @@ async function handleGetRankedButton(interaction: any) {
     include: { questions: { orderBy: { position: "asc" } } },
   });
 
-  // Cooldown / duplicate-application check, before wasting the applicant's
-  // time filling out a form we're going to reject anyway.
   const latest = await prisma.application.findFirst({
     where: { guildId, applicantId },
     orderBy: { createdAt: "desc" },
@@ -274,9 +364,6 @@ async function handleRankButton(interaction: any, customId: string) {
 
   const allRanks = await prisma.rank.findMany({ where: { guildId } });
 
-  // Swap: remove any other configured rank role the applicant currently
-  // holds before adding the new one, so ranking someone up (or down) moves
-  // them instead of stacking every role they've ever been given.
   let roleAssignFailed = false;
   try {
     const member: any = await getGuildMember(guildId, applicantId);
@@ -291,7 +378,6 @@ async function handleRankButton(interaction: any, customId: string) {
     roleAssignFailed = true;
   }
 
-  // Update the audit record for this application.
   const application = await prisma.application.findFirst({
     where: { guildId, threadId: interaction.channel_id, status: "PENDING" },
   });
@@ -379,7 +465,7 @@ async function handleDenyButton(interaction: any, customId: string) {
               type: 4,
               custom_id: "reason",
               label: "Reason (shown to the applicant)",
-              style: 2, // paragraph
+              style: 2,
               placeholder: "e.g. Needs more transitions, resubmit when ready.",
               required: false,
               max_length: 512,
@@ -524,8 +610,6 @@ async function handleDenySubmit(interaction: any, customId: string) {
     content: `❌ Application denied by <@${interaction.member.user.id}>.\nReason: ${reason}`,
   });
 
-  // Modal submits triggered from a message component carry the original
-  // message, so we can edit it in place same as the approve flow.
   const oldEmbed = interaction.message?.embeds?.[0];
   if (!oldEmbed) {
     return json({ type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE, data: { content: "Denied.", flags: MessageFlags.EPHEMERAL } });
