@@ -12,10 +12,18 @@ export default async function DashboardPage() {
   if (!session) redirect("/");
 
   const accessToken = (session as any).accessToken as string;
-  const [userGuilds, botGuilds] = await Promise.all([
-    getUserAdminGuilds(accessToken),
-    getBotGuilds() as Promise<any[]>,
-  ]);
+
+  let userGuilds: any[] = [];
+  let botGuilds: any[] = [];
+  let loadError: string | null = null;
+  try {
+    [userGuilds, botGuilds] = await Promise.all([
+      getUserAdminGuilds(accessToken),
+      getBotGuilds() as Promise<any[]>,
+    ]);
+  } catch (err: any) {
+    loadError = err?.message ?? "Failed to load servers from Discord.";
+  }
 
   const botGuildIds = new Set(botGuilds.map((g) => g.id));
   const manageable = userGuilds.filter((g) => botGuildIds.has(g.id));
@@ -39,6 +47,17 @@ export default async function DashboardPage() {
         title="Your servers"
         subtitle="Pick a server to configure its rank tiers and roles."
       />
+
+      {loadError && (
+        <div className="card bg-panel p-4 mb-6 border-red-500/30">
+          <p className="text-red-400 text-sm font-medium">Couldn't load your servers</p>
+          <p className="text-white/50 text-sm mt-1">{loadError}</p>
+          <p className="text-white/30 text-xs mt-2">
+            This usually means DISCORD_BOT_TOKEN in your deployment's environment variables is
+            missing or out of date — check it matches your current bot token.
+          </p>
+        </div>
+      )}
 
       {manageable.length === 0 && (
         <p className="text-white/50 mb-6">
